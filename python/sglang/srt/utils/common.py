@@ -1277,6 +1277,26 @@ def is_gfx115_supported():
 
 
 @lru_cache(maxsize=1)
+def is_aiter_installed() -> bool:
+    """Whether the aiter package is importable; consumer RDNA builds ship without it."""
+    return importlib.util.find_spec("aiter") is not None
+
+
+@lru_cache(maxsize=1)
+def is_gfx103_supported():
+    """
+    Returns whether the current platform is AMD RDNA2 (gfx103x, e.g. gfx1030, gfx1031).
+
+    Also true under HSA_OVERRIDE_GFX_VERSION=10.3.0, which reports gfx1030.
+    """
+    if is_hip():
+        gcn_arch = torch.cuda.get_device_properties(0).gcnArchName
+        return gcn_arch.startswith("gfx103")
+    else:
+        return False
+
+
+@lru_cache(maxsize=1)
 def is_gfx1250_supported():
     """
     Returns whether the current platform is AMD RDNA4 (gfx1250).

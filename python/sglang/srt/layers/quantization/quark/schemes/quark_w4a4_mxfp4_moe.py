@@ -31,6 +31,7 @@ from sglang.srt.utils import (
     is_hip,
     set_weight_attrs,
 )
+from sglang.srt.utils.common import is_aiter_installed
 
 NVFP4_BLOCK_SIZE = 16
 
@@ -120,7 +121,7 @@ _shuffle_moe_gfx1250 = (
     and get_bool_env_var("SGLANG_MOE_SHUFFLE_GFX1250", "true")
 )
 
-if _is_hip:
+if _is_hip and is_aiter_installed():
     from aiter.ops.triton.quant import dynamic_mxfp4_quant
 else:
     dynamic_mxfp4_quant = None

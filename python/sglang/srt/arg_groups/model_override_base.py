@@ -327,6 +327,9 @@ def get_default_attn_backend(server_args: Any, use_mla_backend: bool, model_conf
             if model_config.has_asymmetric_kv:
                 return "fa4"
             return "trtllm_mha"
+        elif get_platform().is_rdna2:
+            # aiter's CK attention templates assume wave64 and MFMA, which RDNA2 lacks.
+            return "triton"
         elif get_platform().is_hip:
             return "aiter"
         elif is_mps():
@@ -342,6 +345,8 @@ def get_default_attn_backend(server_args: Any, use_mla_backend: bool, model_conf
             return "fa3"
         elif get_platform().is_sm100:
             return "flashinfer"
+        elif get_platform().is_rdna2:
+            return "triton"
         elif get_platform().is_hip:
             head_num = model_config.get_num_kv_heads(cfg.tp_size)
             # TODO current aiter only support head number 16 or 128 head number
