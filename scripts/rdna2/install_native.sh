@@ -9,7 +9,7 @@
 set -euo pipefail
 
 GPU_ARCH="${GPU_ARCH:-gfx1031}"
-VENV="${1:-.venv-rdna2}"
+VENV="$(realpath -m "${1:-.venv-rdna2}")"
 ROCM_INDEX_URL="${ROCM_INDEX_URL:-https://stable.repo.amd.com/rocm/whl-next/}"
 ROCM_SDK_VERSION="10.1.0"
 TORCH_VERSION="2.12.0"
@@ -63,17 +63,20 @@ python "${REPO}/scripts/rdna2/flatten_requirements.py" "${REPO}/python/pyproject
     > "${VENV}/rdna2-requirements.txt"
 python -m pip install -r "${VENV}/rdna2-requirements.txt"
 
-# No build isolation: python/pyproject.toml's build-system pins the CUDA torch,
-# which an isolated build env would download. setuptools-rust needs cargo.
+# Install against the ROCm package metadata (pyproject_other.toml), as the
+# Dockerfile does; the CUDA pyproject.toml is restored afterwards so the
+# checkout stays clean. setuptools-rust needs cargo.
 command -v cargo >/dev/null || {
   echo "cargo not found; install Rust (https://rustup.rs) and re-run" >&2
   exit 1
 }
-python -m pip install "setuptools-rust>=1.11"
-python -m pip install --no-deps --no-build-isolation -e "${REPO}/python"
-
+python -m pip install "setuptools-rust>=1.10"
 BUILD_DIR="$(mktemp -d)"
-trap 'rm -rf "${BUILD_DIR}"' EXIT
+cp "${REPO}/python/pyproject.toml" "${BUILD_DIR}/pyproject.cuda.toml"
+trap 'cp "${BUILD_DIR}/pyproject.cuda.toml" "${REPO}/python/pyproject.toml"; rm -rf "${BUILD_DIR}"' EXIT
+cp "${REPO}/python/pyproject_other.toml" "${REPO}/python/pyproject.toml"
+python -m pip install --no-deps --no-build-isolation -e "${REPO}/python"
+cp "${BUILD_DIR}/pyproject.cuda.toml" "${REPO}/python/pyproject.toml"
 if [ "${BUILD_SGL_KERNEL}" = "1" ]; then
   cp -r "${REPO}/python/sglang/kernels/aot" "${BUILD_DIR}/aot"
   cd "${BUILD_DIR}/aot"
@@ -81,6 +84,9 @@ if [ "${BUILD_SGL_KERNEL}" = "1" ]; then
   sh "${REPO}/docker/patches/sgl-kernel-rdna2.sh" setup_rocm.py
   AMDGPU_TARGET="${GPU_ARCH}" MAX_JOBS="${MAX_JOBS}" python setup_rocm.py install
   cd "${REPO}"
+else
+  echo "ERROR: sgl_kernel is required on RDNA2 (HIP activation imports); BUILD_SGL_KERNEL must be 1" >&2
+  exit 1
 fi
 
 ACTIVATE_EXTRA="${VENV}/bin/activate.d-rdna2.sh"

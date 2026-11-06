@@ -209,6 +209,11 @@ class QuarkW4A4MXFp4MoE(QuarkMoEScheme):
         # source may be NVFP4 (ModelOpt/Quark) or FP8 (block-quantized).
         if self.dequantization_config is not None:
             if isinstance(self.dequantization_config, Nvfp4SourceConfig):
+                if dynamic_mxfp4_quant is None:
+                    raise NotImplementedError(
+                        "NVFP4 -> MXFP4 MoE requantization needs aiter's "
+                        "dynamic_mxfp4_quant; install aiter on an AMD ROCm build."
+                    )
                 self._create_weights_from_nvfp4_moe(
                     layer=layer,
                     num_experts=num_experts,

@@ -141,7 +141,7 @@ def _check_sglang() -> None:
         _record("PASS", "sgl_kernel", "AOT kernels importable")
     except ImportError as e:
         _record(
-            "WARN", "sgl_kernel", f"not importable ({e}); Triton/torch fallbacks only"
+            "FAIL", "sgl_kernel", f"not importable ({e}); required by HIP activations"
         )
     if importlib.util.find_spec("sglang.srt.layers.quantization") is None:
         _record("FAIL", "sglang.srt.layers.quantization", "missing")

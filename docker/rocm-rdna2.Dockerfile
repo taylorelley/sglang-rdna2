@@ -120,7 +120,7 @@ RUN python3 -c "import torch; print('torch', torch.__version__); assert torch.ve
 FROM rocm-torch AS sglang
 
 ARG GPU_ARCH=gfx1031
-# Set to 0 to skip the AOT kernels and run on the Triton/torch paths only.
+# sgl_kernel is mandatory on HIP: sglang.srt.layers.activation imports it at module scope.
 ARG BUILD_SGL_KERNEL=1
 ARG MAX_JOBS=8
 
@@ -145,7 +145,8 @@ RUN cd /sgl-workspace/sglang/python/sglang/kernels/aot \
          && sh /sgl-workspace/sglang/docker/patches/sgl-kernel-rdna2.sh setup_rocm.py \
          && AMDGPU_TARGET=${GPU_ARCH} MAX_JOBS=${MAX_JOBS} python3 setup_rocm.py install; \
        else \
-         echo "Skipping sgl-kernel build (BUILD_SGL_KERNEL=0)"; \
+         echo "ERROR: sgl_kernel is required on RDNA2 (HIP activation imports); BUILD_SGL_KERNEL must be 1" >&2; \
+         exit 1; \
        fi
 
 # Install the srt_hip_rocm101 dependency set flattened, as docker/rocm-gfx1151.Dockerfile

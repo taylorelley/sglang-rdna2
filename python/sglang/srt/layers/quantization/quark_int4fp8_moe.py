@@ -19,6 +19,7 @@ from sglang.srt.layers.quantization.base_config import (
 from sglang.srt.layers.quantization.fp8 import Fp8LinearMethod
 from sglang.srt.runtime_context import get_parallel
 from sglang.srt.utils import BAR_FORMAT, is_hip, set_weight_attrs
+from sglang.srt.utils.common import is_aiter_installed
 
 if TYPE_CHECKING:
     from sglang.srt.layers.moe.token_dispatcher import DispatchOutput
@@ -28,9 +29,9 @@ _is_hip = is_hip()
 
 if _is_hip:
     # aiter is absent on consumer RDNA builds; only this MoE scheme needs it.
-    try:
+    if is_aiter_installed():
         from aiter.ops.shuffle import shuffle_weight
-    except ImportError:
+    else:
         shuffle_weight = None
 
     ON_GFX950 = "gfx950" in torch.cuda.get_device_properties("cuda").gcnArchName
@@ -351,6 +352,10 @@ class QuarkInt4Fp8MoEMethod(FusedMoEMethodBase):
         tqdm_reset_no_print(self.online_quant_progress_bar, total=total)
 
     def process_weights_after_loading(self, layer: torch.nn.Module) -> None:
+        if shuffle_weight is None:
+            raise NotImplementedError(
+                "quark_int4fp8_moe needs the aiter package, which is not installed."
+            )
         if _is_hip and not ON_GFX950:
             # CDNA3 does not support OCP FP8E4M3FN, but uses FP8E4M3FNUZ.
             # CDNA4 supports OCP FP8E4M3FN.

@@ -397,6 +397,13 @@ class QuarkW4A4MXFP4(QuarkLinearScheme):
         self.is_checkpoint_mxfp4_serialized = is_checkpoint_mxfp4_serialized
         self.dequantization_config = dequantization_config
 
+        # Every GEMM and quant helper above is defined only when aiter imports.
+        if _is_hip and not is_aiter_installed():
+            raise NotImplementedError(
+                "Quark W4A4 MXFP4 linear layers need the aiter package, "
+                "which is not installed (e.g. on consumer RDNA builds)."
+            )
+
         if not self.is_checkpoint_mxfp4_serialized:
             if not is_gfx95_supported():
                 raise NotImplementedError(
