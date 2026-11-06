@@ -25,7 +25,11 @@ from sglang.srt.layers.quantization.online_quantization import CopyNumelCounter
 from sglang.srt.layers.quantization.quark.schemes import QuarkLinearScheme
 from sglang.srt.layers.quantization.quark.utils import Nvfp4SourceConfig
 from sglang.srt.utils import get_bool_env_var, is_hip
-from sglang.srt.utils.common import direct_register_custom_op, is_gfx95_supported
+from sglang.srt.utils.common import (
+    direct_register_custom_op,
+    is_aiter_installed,
+    is_gfx95_supported,
+)
 
 NVFP4_BLOCK_SIZE = 16
 
@@ -160,7 +164,7 @@ def _dequant_mxfp4_to_bf16(
     return w.to(torch.bfloat16)
 
 
-if _is_hip:
+if _is_hip and is_aiter_installed():
     from aiter import gemm_a4w4 as _gemm_a4w4_orig
     from aiter import per_1x32_f4_quant_hip as _per_1x32_f4_quant_hip_orig
     from aiter.ops.shuffle import shuffle_weight
@@ -392,6 +396,13 @@ class QuarkW4A4MXFP4(QuarkLinearScheme):
         self.input_quant_spec = input_quant_spec
         self.is_checkpoint_mxfp4_serialized = is_checkpoint_mxfp4_serialized
         self.dequantization_config = dequantization_config
+
+        # Every GEMM and quant helper above is defined only when aiter imports.
+        if _is_hip and not is_aiter_installed():
+            raise NotImplementedError(
+                "Quark W4A4 MXFP4 linear layers need the aiter package, "
+                "which is not installed (e.g. on consumer RDNA builds)."
+            )
 
         if not self.is_checkpoint_mxfp4_serialized:
             if not is_gfx95_supported():

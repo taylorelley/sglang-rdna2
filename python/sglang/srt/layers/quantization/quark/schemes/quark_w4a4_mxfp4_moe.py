@@ -31,6 +31,7 @@ from sglang.srt.utils import (
     is_hip,
     set_weight_attrs,
 )
+from sglang.srt.utils.common import is_aiter_installed
 
 NVFP4_BLOCK_SIZE = 16
 
@@ -48,8 +49,10 @@ _is_hip = is_hip()
 _is_gfx95 = is_gfx95_supported()
 # This scheme runs only on the AITER runner, so on the arches AITER has an MXFP4
 # MoE layout for, that layout is bound whatever SGLANG_USE_AITER says.
-_use_aiter = _is_hip and (
-    get_bool_env_var("SGLANG_USE_AITER") or _is_gfx95 or is_gfx1250_supported()
+_use_aiter = (
+    _is_hip
+    and is_aiter_installed()
+    and (get_bool_env_var("SGLANG_USE_AITER") or _is_gfx95 or is_gfx1250_supported())
 )
 _is_shuffle_moe_mxfp4 = _use_aiter and _is_gfx95
 _aiter_k3_opt = _use_aiter and get_bool_env_var("SGLANG_AITER_K3_OPT")
@@ -120,7 +123,7 @@ _shuffle_moe_gfx1250 = (
     and get_bool_env_var("SGLANG_MOE_SHUFFLE_GFX1250", "true")
 )
 
-if _is_hip:
+if _is_hip and is_aiter_installed():
     from aiter.ops.triton.quant import dynamic_mxfp4_quant
 else:
     dynamic_mxfp4_quant = None
@@ -208,6 +211,11 @@ class QuarkW4A4MXFp4MoE(QuarkMoEScheme):
         # source may be NVFP4 (ModelOpt/Quark) or FP8 (block-quantized).
         if self.dequantization_config is not None:
             if isinstance(self.dequantization_config, Nvfp4SourceConfig):
+                if dynamic_mxfp4_quant is None:
+                    raise NotImplementedError(
+                        "NVFP4 -> MXFP4 MoE requantization needs aiter's "
+                        "dynamic_mxfp4_quant; install aiter on an AMD ROCm build."
+                    )
                 self._create_weights_from_nvfp4_moe(
                     layer=layer,
                     num_experts=num_experts,
@@ -1096,6 +1104,10 @@ class QuarkW4A4MXFp4MoE(QuarkMoEScheme):
         self._owns_moe_weight_layout = False
         if _use_triton_w4a16:
             return
+        if not is_aiter_installed():
+            raise NotImplementedError(
+                "Quark MXFP4 MoE needs the aiter package, which is not installed."
+            )
         moe_runner_backend = get_moe_runner_backend()
         if moe_runner_backend.is_auto() and get_moe_a2a_backend().supports_aiter():
             moe_runner_backend = MoeRunnerBackend.AITER

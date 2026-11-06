@@ -1001,6 +1001,17 @@ class TestGoldenModelOverrides(_IsolatedPublish):
             # Generative Ministral3 checkpoints are unaffected.
             self._construct(*nemotron3)
 
+    def test_rdna2_defaults_to_triton_attention(self):
+        """RDNA2 (gfx103x) has no MFMA and runs wave32, so the ROCm aiter default
+        must not reach it; CDNA ROCm must keep aiter."""
+        llama = ("LlamaForCausalLM", "llama")
+        with override_platform(is_cuda=False, is_hip=True, is_rdna2=True):
+            sa = self._construct(*llama)
+            self.assertEqual(self._resolved(sa, "attention_backend"), "triton")
+        with override_platform(is_cuda=False, is_hip=True, is_rdna2=False):
+            sa = self._construct(*llama)
+            self.assertEqual(self._resolved(sa, "attention_backend"), "aiter")
+
     def test_minimax_m2_enables_tf32_matmul(self):
         sa = self._construct("MiniMaxM2ForCausalLM", "llama")
         self.assertTrue(self._resolved(sa, "enable_tf32_matmul"))

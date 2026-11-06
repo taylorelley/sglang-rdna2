@@ -227,3 +227,30 @@ docker run -it --rm \
 - LLM / SRT: `--attention-backend triton` (or rely on the gfx115 auto-default), `--num-gpus 1`
 - Diffusion / DiT (e.g. Wan2.2): `--attention-backend torch_sdpa`, `--num-gpus 1`
 - Keep `SGLANG_USE_AITER=0` (already set in the official image)
+
+## RDNA2 / gfx103x (Radeon RX 6000 series)
+
+RDNA2 discrete Radeon cards (RX 6700 XT / 6750 XT = `gfx1031`, RX 6800 / 6800 XT / 6900 XT = `gfx1030`) are wave32 parts with no matrix cores (MFMA/WMMA) and no FP8. They are **not** covered by the Instinct `rocm.Dockerfile` image. Build the dedicated image, which installs AMD's TheRock ROCm 10.1 wheels with a native `gfx103x` device payload, so `HSA_OVERRIDE_GFX_VERSION` is not needed:
+
+```bash
+docker build -f docker/rocm-rdna2.Dockerfile --build-arg GPU_ARCH=gfx1031 -t sglang-rocm:rdna2 .
+docker run -it --rm \
+  --device=/dev/kfd --device=/dev/dri \
+  --group-add video --group-add render \
+  --security-opt seccomp=unconfined \
+  --ipc=host --shm-size 8g \
+  -p 30000:30000 \
+  -v ~/.cache/huggingface:/root/.cache/huggingface \
+  sglang-rocm:rdna2 bash
+python3 scripts/rdna2/check_env.py
+```
+
+For a native (no Docker) install into a venv, use `GPU_ARCH=gfx1031 scripts/rdna2/install_native.sh`.
+
+**Serving defaults on gfx103x**:
+
+- The attention backend defaults to `triton` on gfx103x (aiter's kernels assume CDNA).
+- Keep `SGLANG_USE_AITER=0` (set by the image and the native install).
+- With 12-16 GB of VRAM, prefer int4 checkpoints (AWQ / GPTQ) for 7B-14B models.
+
+See `scripts/rdna2/README.md` in the repository for the status of each feature on RDNA2.
