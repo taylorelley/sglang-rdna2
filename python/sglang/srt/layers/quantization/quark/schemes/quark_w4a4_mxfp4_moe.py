@@ -49,8 +49,10 @@ _is_hip = is_hip()
 _is_gfx95 = is_gfx95_supported()
 # This scheme runs only on the AITER runner, so on the arches AITER has an MXFP4
 # MoE layout for, that layout is bound whatever SGLANG_USE_AITER says.
-_use_aiter = _is_hip and (
-    get_bool_env_var("SGLANG_USE_AITER") or _is_gfx95 or is_gfx1250_supported()
+_use_aiter = (
+    _is_hip
+    and is_aiter_installed()
+    and (get_bool_env_var("SGLANG_USE_AITER") or _is_gfx95 or is_gfx1250_supported())
 )
 _is_shuffle_moe_mxfp4 = _use_aiter and _is_gfx95
 _aiter_k3_opt = _use_aiter and get_bool_env_var("SGLANG_AITER_K3_OPT")
@@ -1102,6 +1104,10 @@ class QuarkW4A4MXFp4MoE(QuarkMoEScheme):
         self._owns_moe_weight_layout = False
         if _use_triton_w4a16:
             return
+        if not is_aiter_installed():
+            raise NotImplementedError(
+                "Quark MXFP4 MoE needs the aiter package, which is not installed."
+            )
         moe_runner_backend = get_moe_runner_backend()
         if moe_runner_backend.is_auto() and get_moe_a2a_backend().supports_aiter():
             moe_runner_backend = MoeRunnerBackend.AITER
